@@ -1,3 +1,4 @@
+import time
 from classic_controllers import Controller
 from externally_referenced_state_plot import ExternallyReferencedStatePlot
 import gym_electric_motor as gem
@@ -9,7 +10,7 @@ if __name__ == '__main__':
     """
         motor type:     'PMSM'      Permanent Magnet Synchronous Motor
                         'SynRM'     Synchronous Reluctance Motor
-                        
+
         control type:   'SC'         Speed Control
                         'TC'         Torque Control
                         'CC'         Current Control
@@ -33,19 +34,19 @@ if __name__ == '__main__':
 
     """
     initialize the controller
-    
+
     Args:
         environment                     gym-electric-motor environment
         external_ref_plots (optional)   plots of the environment, to plot all reference values
         stages (optional)               structure of the controller
         automated_gain (optional)       if True (default), the controller will be tune automatically
         a (optional)                    tuning parameter of the Symmetrical Optimum (default: 4)
-        
+
         additionally for TC or SC:
         torque_control (optional)       mode of the torque controller, 'interpolate' (default), 'analytical' or 'online'
         plot_torque(optional)           plot some graphs of the torque controller (default: True)
         plot_modulation (optional)      plot some graphs of the modulation controller (default: False)
-        
+
     """
 
     controller = Controller.make(env, external_ref_plots=external_ref_plots, torque_control='analytical')
@@ -60,5 +61,7 @@ if __name__ == '__main__':
         if done:
             env.reset()
             controller.reset()
+
+    input("Press Enter to continue...")
 
     env.close()
