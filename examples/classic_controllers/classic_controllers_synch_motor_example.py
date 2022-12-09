@@ -96,7 +96,8 @@ if __name__ == '__main__':
 
 
     # definition of the plotted variables
-    external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_sd', 'i_sq', 'i_abs', 'u_sd', 'u_sq']]
+    #external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_sd', 'i_sq', 'i_abs', 'u_sd', 'u_sq']]
+    external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_a', 'u_a', 'u_b']]
 
     emrax_208_HV = {
         'motor_parameter': {
@@ -120,7 +121,7 @@ if __name__ == '__main__':
     }
 
     battery = {
-        'voltage':600,
+        'voltage':100,
         'parameters': {
             'R':27.82e-3,
             'C':1
@@ -131,7 +132,7 @@ if __name__ == '__main__':
         'load_parameter': {
             'a':1e-3,
             'b':1e-4,
-            'c':1e-4,
+            'c':5e-4,
             'j_load':100e-3
         },
         'limits': {
@@ -175,7 +176,7 @@ if __name__ == '__main__':
     state, reference = env.reset()
 
     # simulate the environment
-    for i in range(10001):
+    for i in range(20001):
         env.render()
         action = controller.control(state, reference)
         (state, reference), reward, done, _ = env.step(action)
@@ -184,6 +185,7 @@ if __name__ == '__main__':
             env.reset()
             controller.reset()
 
+    print(type(state))
     input("Press Enter to continue...")
 
     env.close()
