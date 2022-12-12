@@ -7,9 +7,10 @@ from gym_electric_motor.physical_systems.mechanical_loads import PolynomialStati
 from gym_electric_motor.reference_generators import ConstReferenceGenerator
 from gym_electric_motor.physical_system_wrappers import PhysicalSystemWrapper
 import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
 
 import gym
-import numpy as np
 
 class CurrentVectorProcessor(PhysicalSystemWrapper):
     """Adds an ``i_abs`` state to the systems state vector that is the root of the squared sum of the currents ``i_sd`` and `` i_sq``."""
@@ -17,6 +18,16 @@ class CurrentVectorProcessor(PhysicalSystemWrapper):
     def __init__(self, physical_system=None):
         self._i_sd_idx = None
         self._i_sq_idx = None
+        self._i_a_idx = None
+        self._i_b_idx = None
+        self._i_c_idx = None
+        self._u_sd_idx = None
+        self._u_sq_idx = None
+        self._u_a_idx = None
+        self._u_b_idx = None
+        self._u_c_idx = None
+        self._omega_idx = None
+        self._torque_idx = None
         super().__init__(physical_system=physical_system)
 
     def set_physical_system(self, physical_system):
@@ -37,6 +48,28 @@ class CurrentVectorProcessor(PhysicalSystemWrapper):
         # Set the new limits /  nominal values of the state vector
         self._i_sq_idx = self._physical_system.state_names.index('i_sq')
         self._i_sd_idx = self._physical_system.state_names.index('i_sd')
+        self._i_a_idx = self._physical_system.state_names.index('i_a')
+        self._i_b_idx = self._physical_system.state_names.index('i_b')
+        self._i_c_idx = self._physical_system.state_names.index('i_c')
+        self._u_sd_idx = self._physical_system.state_names.index('u_sd')
+        self._u_sq_idx = self._physical_system.state_names.index('u_sq')
+        self._u_a_idx = self._physical_system.state_names.index('u_a')
+        self._u_b_idx = self._physical_system.state_names.index('u_b')
+        self._u_c_idx = self._physical_system.state_names.index('u_c')
+        self._omega_idx = self._physical_system.state_names.index('omega')
+        self._torque_idx = self._physical_system.state_names.index('torque')
+        self.i_sd_limit = physical_system.limits[self._i_sd_idx]
+        self.i_sq_limit = physical_system.limits[self._i_sq_idx]
+        self.i_a_limit = physical_system.limits[self._i_a_idx]
+        self.i_b_limit = physical_system.limits[self._i_b_idx]
+        self.i_c_limit = physical_system.limits[self._i_c_idx]
+        self.u_sd_limit = physical_system.limits[self._u_sd_idx]
+        self.u_sq_limit = physical_system.limits[self._u_sq_idx]
+        self.u_a_limit = physical_system.limits[self._u_a_idx]
+        self.u_b_limit = physical_system.limits[self._u_b_idx]
+        self.u_c_limit = physical_system.limits[self._u_c_idx]
+        self.omega_limit = physical_system.limits[self._omega_idx]
+        self.torque_limit = physical_system.limits[self._torque_idx]
         current_limit = np.sqrt((physical_system.limits[self._i_sd_idx]**2 + physical_system.limits[self._i_sq_idx]**2) / 2)
         current_nominal_value = np.sqrt((physical_system.nominal_state[self._i_sd_idx]**2 + physical_system.nominal_state[self._i_sq_idx]**2)/2)
         self._limits = np.concatenate((physical_system.limits, [current_limit]))
@@ -70,7 +103,20 @@ class CurrentVectorProcessor(PhysicalSystemWrapper):
         Returns:
             float: The rms of the currents of the state.
         """
-        return np.sqrt(state[self._i_sd_idx]**2 + state[self._i_sq_idx]**2)
+        self.i_sd=state[self._i_sd_idx] * self.i_sd_limit
+        self.i_sq=state[self._i_sq_idx] * self.i_sq_limit
+        self.i_a=state[self._i_a_idx] * self.i_a_limit
+        self.i_b=state[self._i_b_idx] * self.i_b_limit
+        self.i_c=state[self._i_c_idx] * self.i_c_limit
+        self.u_sd=state[self._u_sd_idx] * self.u_sd_limit
+        self.u_sq=state[self._u_sq_idx] * self.u_sq_limit
+        self.u_a=state[self._u_a_idx] * self.u_a_limit
+        self.u_b=state[self._u_b_idx] * self.u_b_limit
+        self.u_c=state[self._u_c_idx] * self.u_c_limit
+        self.omega=state[self._omega_idx] * self.omega_limit
+        self.torque=state[self._torque_idx] * self.torque_limit
+        current=np.sqrt(self.i_sd**2 + self.i_sq**2)
+        return current
 
 
 
@@ -97,7 +143,10 @@ if __name__ == '__main__':
 
     # definition of the plotted variables
     #external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_sd', 'i_sq', 'i_abs', 'u_sd', 'u_sq']]
-    external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_a', 'u_a', 'u_b']]
+    external_ref_plots = [ExternallyReferencedStatePlot(state) for state in ['omega', 'torque', 'i_a', 'i_b', 'u_a', 'u_b']]
+
+    dashboard = MotorDashboard(additional_plots=external_ref_plots,
+                               time_plot_width=20000)
 
     emrax_208_HV = {
         'motor_parameter': {
@@ -121,7 +170,7 @@ if __name__ == '__main__':
     }
 
     battery = {
-        'voltage':100,
+        'voltage':400,
         'parameters': {
             'R':27.82e-3,
             'C':1
@@ -145,13 +194,14 @@ if __name__ == '__main__':
     supply = RCVoltageSupply(battery['voltage'], battery['parameters'])
     reference_generator = ConstReferenceGenerator(reference_value=1)
 
+    wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
-    physical_system_wrappers.append(CurrentVectorProcessor())
+    physical_system_wrappers.append(wrapper)
 
     # initialize the gym-electric-motor environment
     env = gem.make(env_id, supply=supply, motor=emrax_208_HV,reference_generator=reference_generator,
                    load=propeller_load,
-                   visualization=MotorDashboard(additional_plots=external_ref_plots),
+#                   visualization=dashboard,
                    physical_system_wrappers = physical_system_wrappers)
 
     """
@@ -171,21 +221,56 @@ if __name__ == '__main__':
 
     """
 
-    controller = Controller.make(env, external_ref_plots=external_ref_plots, torque_control='analytical')
+    controller = Controller.make(env, torque_control='analytical', plot_torque=False)
 
     state, reference = env.reset()
+    id = []
+    iq = []
+    ia = []
+    ib = []
+    ic = []
+    ud = []
+    uq = []
+    ua = []
+    ub = []
+    uc = []
+    omega = []
+    torque = []
 
     # simulate the environment
     for i in range(20001):
-        env.render()
+        #env.render()
         action = controller.control(state, reference)
         (state, reference), reward, done, _ = env.step(action)
+        id.append(wrapper.i_sd)
+        iq.append(wrapper.i_sq)
+        ia.append(wrapper.i_a)
+        ib.append(wrapper.i_b)
+        ic.append(wrapper.i_c)
+        ud.append(wrapper.u_sd)
+        uq.append(wrapper.u_sq)
+        ua.append(wrapper.u_a)
+        ub.append(wrapper.u_b)
+        uc.append(wrapper.u_c)
+        omega.append(wrapper.omega)
+        torque.append(wrapper.torque)
         if done:
             print('Done')
             env.reset()
             controller.reset()
 
-    print(type(state))
-    input("Press Enter to continue...")
+    motor_dict = {'id': id, 'iq': iq, 'ud': ud, 'uq': uq, 'ia': ia, 'ib': ib, 'ic': ic, 'ua': ua, 'ub': ub, 'uc': uc, 'omega': omega, 'torque': torque}
+    motor = pd.DataFrame(data=motor_dict)
+    motor['mech_pwr'] = motor['omega'] * motor['torque']
+    motor['elec_pwr_dc'] = np.sqrt(motor['id']**2 + motor['iq']**2) * np.sqrt(motor['ud']**2 + motor['uq']**2)
+    motor['elec_pwr_ac'] = motor.ia * motor.ua + motor.ib * motor.ub + motor.ic * motor.uc
+    motor.eff = motor.mech_pwr/motor.elec_pwr_ac
+    motor[['mech_pwr','elec_pwr_dc', 'elec_pwr_ac']].plot(grid=True, linestyle='none', marker='.')
+    plt.figure()
+    motor.eff.plot()
+    plt.show()
+
+
+#    input("Press Enter to continue...")
 
     env.close()
