@@ -163,17 +163,42 @@ if __name__ == '__main__':
         'nominal_values': {
             'omega':4000*2*np.pi/60,  # angular velocity in rad/s
             'i':141,                  # motor current in amps (peak)
-            'u':300                   # nominal voltage in volts (peak)
+            'u':300                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
         },
         'limit_values': {
             'omega':6000*2*np.pi/60,  # angular velocity in rad/s
             'i':280,                  # motor current in amps (peak)
-            'u':450                   # nominal voltage in volts (peak)
+            'u':450                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        }
+    }
+
+    emrax_208_LV_parameters = {
+        'motor_parameter': {
+            'p':10,               # number of pole pairs
+            'r_s':0.9e-3,         # stator resistance (ohm)
+            'l_d':7.2e-6,         # d-axis inductance (H)
+            'l_q':7.5e-6,         # q-axis inductance (H)
+            'psi_p':9.5e-3,       # magnetic flux of the permanent magnet (Vs)
+            'j_rotor':23e-3       # rotor inertia (kg/m^2)
+        },
+        'nominal_values': {
+            'omega':4000*2*np.pi/60,  # angular velocity in rad/s
+            'i':565,                  # motor current in amps (peak)
+            'u':120                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        },
+        'limit_values': {
+            'omega':6000*2*np.pi/60,  # angular velocity in rad/s
+            'i':1100,                 # motor current in amps (peak)
+            'u':140                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
         }
     }
 
     battery_parameters = {
-        'voltage':400,
+        'voltage':120,
         'parameters': {
             'R':27.82e-3,
             'C':1
@@ -184,7 +209,7 @@ if __name__ == '__main__':
         'load_parameter': {
             'a':1e-3,
             'b':1e-4,
-            'c':4e-4,
+            'c':2e-4,
             'j_load':100e-3
         },
         'limits': {
@@ -198,14 +223,14 @@ if __name__ == '__main__':
     converter = ContB6BridgeConverter()
 
     supply = RCVoltageSupply(battery_parameters['voltage'], battery_parameters['parameters'])
-    reference_generator = ConstReferenceGenerator(reference_value=.6)
+    reference_generator = ConstReferenceGenerator(reference_value=1)
 
     wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
     physical_system_wrappers.append(wrapper)
 
     # initialize the gym-electric-motor environment
-    env = gem.make(env_id, supply=supply, motor=emrax_208_HV_parameters,reference_generator=reference_generator,
+    env = gem.make(env_id, supply=supply, motor=emrax_208_LV_parameters,reference_generator=reference_generator,
                    load=propeller_load,
                    converter=converter,
                    #visualization=dashboard,
