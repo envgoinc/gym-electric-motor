@@ -4,8 +4,11 @@ import gym_electric_motor as gem
 from gym_electric_motor.visualization import MotorDashboard
 from gym_electric_motor.physical_systems import RCVoltageSupply
 from gym_electric_motor.physical_systems.mechanical_loads import PolynomialStaticLoad
+from gym_electric_motor.physical_systems.mechanical_loads import ConstantSpeedLoad
 from gym_electric_motor.reference_generators import ConstReferenceGenerator
 from gym_electric_motor.physical_system_wrappers import PhysicalSystemWrapper
+from gym_electric_motor.physical_systems.converters import ContB6BridgeConverter
+from gym_electric_motor.physical_systems.electric_motors import PermanentMagnetSynchronousMotor
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -135,7 +138,7 @@ if __name__ == '__main__':
     """
 
     motor_type = 'PMSM'
-    control_type = 'SC'
+    control_type = 'TC'
     action_type = 'Cont'
 
     env_id = action_type + '-' + control_type + '-' + motor_type + '-v0'
@@ -148,7 +151,7 @@ if __name__ == '__main__':
     dashboard = MotorDashboard(additional_plots=external_ref_plots,
                                time_plot_width=20000)
 
-    emrax_208_HV = {
+    emrax_208_HV_parameters = {
         'motor_parameter': {
             'p':10,               # number of pole pairs
             'r_s':12e-3,          # stator resistance (ohm)
@@ -158,18 +161,18 @@ if __name__ == '__main__':
             'j_rotor':23e-3       # rotor inertia (kg/m^2)
         },
         'nominal_values': {
-            'omega':3000*2*np.pi/60,  # angular velocity in rad/s
+            'omega':4000*2*np.pi/60,  # angular velocity in rad/s
             'i':141,                  # motor current in amps (peak)
-            'u':200                   # nominal voltage in volts (peak)
+            'u':300                   # nominal voltage in volts (peak)
         },
         'limit_values': {
             'omega':6000*2*np.pi/60,  # angular velocity in rad/s
             'i':280,                  # motor current in amps (peak)
-            'u':400                   # nominal voltage in volts (peak)
+            'u':450                   # nominal voltage in volts (peak)
         }
     }
 
-    battery = {
+    battery_parameters = {
         'voltage':400,
         'parameters': {
             'R':27.82e-3,
@@ -181,7 +184,7 @@ if __name__ == '__main__':
         'load_parameter': {
             'a':1e-3,
             'b':1e-4,
-            'c':5e-4,
+            'c':4e-4,
             'j_load':100e-3
         },
         'limits': {
@@ -190,18 +193,22 @@ if __name__ == '__main__':
     }
 
     propeller_load = PolynomialStaticLoad(load_parameter=propeller_parameters['load_parameter'], limits=propeller_parameters['limits'])
+    constant_load = ConstantSpeedLoad(omega_fixed=3600*np.pi/30)
 
-    supply = RCVoltageSupply(battery['voltage'], battery['parameters'])
-    reference_generator = ConstReferenceGenerator(reference_value=1)
+    converter = ContB6BridgeConverter()
+
+    supply = RCVoltageSupply(battery_parameters['voltage'], battery_parameters['parameters'])
+    reference_generator = ConstReferenceGenerator(reference_value=.6)
 
     wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
     physical_system_wrappers.append(wrapper)
 
     # initialize the gym-electric-motor environment
-    env = gem.make(env_id, supply=supply, motor=emrax_208_HV,reference_generator=reference_generator,
+    env = gem.make(env_id, supply=supply, motor=emrax_208_HV_parameters,reference_generator=reference_generator,
                    load=propeller_load,
-#                   visualization=dashboard,
+                   converter=converter,
+                   #visualization=dashboard,
                    physical_system_wrappers = physical_system_wrappers)
 
     """
@@ -236,6 +243,7 @@ if __name__ == '__main__':
     uc = []
     omega = []
     torque = []
+    isup = []
 
     # simulate the environment
     for i in range(20001):
@@ -254,20 +262,28 @@ if __name__ == '__main__':
         uc.append(wrapper.u_c)
         omega.append(wrapper.omega)
         torque.append(wrapper.torque)
+        isup.append(converter.i_sup([wrapper.i_a, wrapper.i_b, wrapper.i_c]))
         if done:
             print('Done')
             env.reset()
             controller.reset()
 
-    motor_dict = {'id': id, 'iq': iq, 'ud': ud, 'uq': uq, 'ia': ia, 'ib': ib, 'ic': ic, 'ua': ua, 'ub': ub, 'uc': uc, 'omega': omega, 'torque': torque}
+    motor_dict = {'id': id, 'iq': iq, 'ud': ud, 'uq': uq, 'ia': ia, 'ib': ib, 'ic': ic, 'isup': isup, 'ua': ua, 'ub': ub, 'uc': uc, 'omega': omega, 'torque': torque}
     motor = pd.DataFrame(data=motor_dict)
     motor['mech_pwr'] = motor['omega'] * motor['torque']
     motor['elec_pwr_dc'] = np.sqrt(motor['id']**2 + motor['iq']**2) * np.sqrt(motor['ud']**2 + motor['uq']**2)
     motor['elec_pwr_ac'] = motor.ia * motor.ua + motor.ib * motor.ub + motor.ic * motor.uc
-    motor.eff = motor.mech_pwr/motor.elec_pwr_ac
+    motor['eff'] = motor.mech_pwr/motor.elec_pwr_ac
+    motor['rpm'] = motor.omega * 30 / np.pi
+    motor['v_rms'] = np.sqrt(motor.ua ** 2 + motor.ub ** 2 + motor.uc ** 2)
+    motor[['rpm', 'torque']].plot(grid=True, linestyle='none', marker='.', subplots=True)
+    motor[['ia', 'ib', 'ic', 'isup']].plot(grid=True)
+    motor[['id', 'iq']].plot(grid=True, linestyle='none', marker='.')
+    motor[['ua', 'ub', 'uc', 'v_rms']].plot(grid=True)
+    motor[['ud', 'uq']].plot(grid=True, linestyle='none', marker='.')
     motor[['mech_pwr','elec_pwr_dc', 'elec_pwr_ac']].plot(grid=True, linestyle='none', marker='.')
     plt.figure()
-    motor.eff.plot()
+    motor.eff.plot(grid=True, linestyle='none', marker='.')
     plt.show()
 
 
