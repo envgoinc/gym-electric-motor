@@ -197,8 +197,31 @@ if __name__ == '__main__':
         }
     }
 
+    emrax_208_LV_43_parameters = {
+        'motor_parameter': {
+            'p':10,               # number of pole pairs
+            'r_s':1e-3,         # stator resistance (ohm)
+            'l_d':4.1e-6,         # d-axis inductance (H)
+            'l_q':4.3e-6,         # q-axis inductance (H)
+            'psi_p':9.5e-3,       # magnetic flux of the permanent magnet (Vs)
+            'j_rotor':23e-3       # rotor inertia (kg/m^2)
+        },
+        'nominal_values': {
+            'omega':2000*2*np.pi/60,  # angular velocity in rad/s
+            'i':550,                  # motor current in amps (peak)
+            'u':120                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        },
+        'limit_values': {
+            'omega':4000*2*np.pi/60,  # angular velocity in rad/s
+            'i':990,                 # motor current in amps (peak)
+            'u':140                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        }
+    }
+
     battery_parameters = {
-        'voltage':120,
+        'voltage':83,
         'parameters': {
             'R':27.82e-3,
             'C':1
@@ -208,9 +231,9 @@ if __name__ == '__main__':
     propeller_parameters = {
         'load_parameter': {
             'a':1e-3,
-            'b':1e-4,
-            'c':2e-4,
-            'j_load':100e-3
+            'b':5e-4,
+            'c':6e-4,
+            'j_load':200e-3#100e-3
         },
         'limits': {
             'omega':6000*2*np.pi/60
@@ -223,14 +246,14 @@ if __name__ == '__main__':
     converter = ContB6BridgeConverter()
 
     supply = RCVoltageSupply(battery_parameters['voltage'], battery_parameters['parameters'])
-    reference_generator = ConstReferenceGenerator(reference_value=1)
+    reference_generator = ConstReferenceGenerator(reference_value=.625)
 
     wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
     physical_system_wrappers.append(wrapper)
 
     # initialize the gym-electric-motor environment
-    env = gem.make(env_id, supply=supply, motor=emrax_208_LV_parameters,reference_generator=reference_generator,
+    env = gem.make(env_id, supply=supply, motor=emrax_208_LV_43_parameters,reference_generator=reference_generator,
                    load=propeller_load,
                    converter=converter,
                    #visualization=dashboard,
@@ -301,10 +324,19 @@ if __name__ == '__main__':
     motor['eff'] = motor.mech_pwr/motor.elec_pwr_ac
     motor['rpm'] = motor.omega * 30 / np.pi
     motor['v_rms'] = np.sqrt(motor.ua ** 2 + motor.ub ** 2 + motor.uc ** 2)
+    motor['ia_amp'] = motor.ia.rolling(1000).max()
+    motor['ib_amp'] = motor.ib.rolling(1000).max()
+    motor['ic_amp'] = motor.ic.rolling(1000).max()
+    motor['ua_amp'] = motor.ua.rolling(1000).max()
+    motor['ub_amp'] = motor.ub.rolling(1000).max()
+    motor['uc_amp'] = motor.uc.rolling(1000).max()
+    motor['ka'] = motor.torque / ((motor.ia_amp + motor.ib_amp + motor.ic_amp) / 3 / np.sqrt(2))
+    motor['ke'] = ((motor.ua_amp + motor.ub_amp + motor.uc_amp) / 3 / np.sqrt(0.66667)) / motor.rpm
     motor[['rpm', 'torque']].plot(grid=True, linestyle='none', marker='.', subplots=True)
+    motor[['ka', 'ke']].plot(grid = True, linestyle='none', marker='.')
     motor[['ia', 'ib', 'ic', 'isup']].plot(grid=True)
     motor[['id', 'iq']].plot(grid=True, linestyle='none', marker='.')
-    motor[['ua', 'ub', 'uc', 'v_rms']].plot(grid=True)
+    motor[['ua', 'ub', 'uc', 'v_rms']].plot(grid=True, linestyle='none', marker='.')
     motor[['ud', 'uq']].plot(grid=True, linestyle='none', marker='.')
     motor[['mech_pwr','elec_pwr_dc', 'elec_pwr_ac']].plot(grid=True, linestyle='none', marker='.')
     plt.figure()
