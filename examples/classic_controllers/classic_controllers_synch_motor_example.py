@@ -151,6 +151,29 @@ if __name__ == '__main__':
     dashboard = MotorDashboard(additional_plots=external_ref_plots,
                                time_plot_width=20000)
 
+    emrax_228_HV_parameters = {
+        'motor_parameter': {
+            'p':10,               # number of pole pairs
+            'r_s':15.48e-3,       # stator resistance (ohm)
+            'l_d':225.5e-6,         # d-axis inductance (H)
+            'l_q':225.5e-6,         # q-axis inductance (H)
+            'psi_p':57.28e-3,      # magnetic flux of the permanent magnet (Vs)
+            'j_rotor':25.21e-3       # rotor inertia (kg/m^2)
+        },
+        'nominal_values': {
+            'omega':4000*2*np.pi/60,  # angular velocity in rad/s
+            'i':170,                  # motor current in amps (peak) (Irms * sqrt(2))
+            'u':700                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        },
+        'limit_values': {
+            'omega':6500*2*np.pi/60,  # angular velocity in rad/s
+            'i':280,                  # motor current in amps (peak)
+            'u':720                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        }
+    }
+
     emrax_208_HV_parameters = {
         'motor_parameter': {
             'p':10,               # number of pole pairs
@@ -228,12 +251,25 @@ if __name__ == '__main__':
         }
     }
 
+    battery_parameters_HV = {
+        'voltage':500,
+        'parameters': {
+            'R':174.41e-3,
+            'C':1
+        }
+    }
+
+    # a - Nm: Constant load torque coefficient (for modeling static friction)
+    # b - Nms: Linear load torque coefficient (for modeling sliding friction)
+    # c - Nms2: Quadratic load torque coefficient (for modeling air resistances)
+    # - change this to put on more load as propeller spins faster.
+    # j_load - kgm2: Moment of inertia of the mechanical system
     propeller_parameters = {
         'load_parameter': {
             'a':1e-3,
             'b':5e-4,
-            'c':6e-4,
-            'j_load':200e-3#100e-3
+            'c':9e-4,
+            'j_load':100e-3
         },
         'limits': {
             'omega':6000*2*np.pi/60
@@ -246,14 +282,15 @@ if __name__ == '__main__':
     converter = ContB6BridgeConverter()
 
     supply = RCVoltageSupply(battery_parameters['voltage'], battery_parameters['parameters'])
-    reference_generator = ConstReferenceGenerator(reference_value=.625)
+    supply_HV = RCVoltageSupply(battery_parameters_HV['voltage'], battery_parameters_HV['parameters'])
+    reference_generator = ConstReferenceGenerator(reference_value=.65)
 
     wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
     physical_system_wrappers.append(wrapper)
 
     # initialize the gym-electric-motor environment
-    env = gem.make(env_id, supply=supply, motor=emrax_208_LV_43_parameters,reference_generator=reference_generator,
+    env = gem.make(env_id, supply=supply_HV, motor=emrax_228_HV_parameters,reference_generator=reference_generator,
                    load=propeller_load,
                    converter=converter,
                    #visualization=dashboard,
@@ -319,7 +356,7 @@ if __name__ == '__main__':
     motor_dict = {'id': id, 'iq': iq, 'ud': ud, 'uq': uq, 'ia': ia, 'ib': ib, 'ic': ic, 'isup': isup, 'ua': ua, 'ub': ub, 'uc': uc, 'omega': omega, 'torque': torque}
     motor = pd.DataFrame(data=motor_dict)
     motor['mech_pwr'] = motor['omega'] * motor['torque']
-    motor['elec_pwr_dc'] = np.sqrt(motor['id']**2 + motor['iq']**2) * np.sqrt(motor['ud']**2 + motor['uq']**2)
+    motor['elec_pwr_dc'] = motor['isup'] * 600
     motor['elec_pwr_ac'] = motor.ia * motor.ua + motor.ib * motor.ub + motor.ic * motor.uc
     motor['eff'] = motor.mech_pwr/motor.elec_pwr_ac
     motor['rpm'] = motor.omega * 30 / np.pi
