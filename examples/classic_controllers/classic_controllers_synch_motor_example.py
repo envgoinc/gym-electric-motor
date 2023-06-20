@@ -163,13 +163,36 @@ if __name__ == '__main__':
         'nominal_values': {
             'omega':4000*2*np.pi/60,  # angular velocity in rad/s
             'i':170,                  # motor current in amps (peak) (Irms * sqrt(2))
-            'u':700                   # nominal voltage in volts (docs say this should be the amplitude, but it
+            'u':600                   # nominal voltage in volts (docs say this should be the amplitude, but it
                                       # in fact seems to be the peak-peak value)
         },
         'limit_values': {
             'omega':6500*2*np.pi/60,  # angular velocity in rad/s
-            'i':280,                  # motor current in amps (peak)
-            'u':720                   # nominal voltage in volts (docs say this should be the amplitude, but it
+            'i':350,                  # motor current in amps (peak)
+            'u':710                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        }
+    }
+
+    emrax_268_HV_parameters = {
+        'motor_parameter': {
+            'p':10,               # number of pole pairs
+            'r_s':21.87e-3,       # stator resistance (ohm)
+            'l_d':330.5e-6,         # d-axis inductance (H)
+            'l_q':330.5e-6,         # q-axis inductance (H)
+            'psi_p':97.69e-3,      # magnetic flux of the permanent magnet (Vs)
+            'j_rotor':57.69e-3       # rotor inertia (kg/m^2)
+        },
+        'nominal_values': {
+            'omega':4000*2*np.pi/60,  # angular velocity in rad/s
+            'i':180,                  # motor current in amps (peak) (Irms * sqrt(2))
+            'u':700                   # nominal voltage in volts (docs say this should be the amplitude, but it
+                                      # in fact seems to be the peak-peak value)
+        },
+        'limit_values': {
+            'omega':5500*2*np.pi/60,  # angular velocity in rad/s
+            'i':450,                  # motor current in amps (peak) (Irms * sqrt(2))
+            'u':800                   # nominal voltage in volts (docs say this should be the amplitude, but it
                                       # in fact seems to be the peak-peak value)
         }
     }
@@ -223,9 +246,9 @@ if __name__ == '__main__':
     emrax_208_LV_43_parameters = {
         'motor_parameter': {
             'p':10,               # number of pole pairs
-            'r_s':1e-3,         # stator resistance (ohm)
+            'r_s':4.03e-3,        # stator resistance (ohm)
             'l_d':4.1e-6,         # d-axis inductance (H)
-            'l_q':4.3e-6,         # q-axis inductance (H)
+            'l_q':4.1e-6,         # q-axis inductance (H)
             'psi_p':9.5e-3,       # magnetic flux of the permanent magnet (Vs)
             'j_rotor':23e-3       # rotor inertia (kg/m^2)
         },
@@ -252,7 +275,7 @@ if __name__ == '__main__':
     }
 
     battery_parameters_HV = {
-        'voltage':500,
+        'voltage':550,
         'parameters': {
             'R':174.41e-3,
             'C':1
@@ -268,7 +291,8 @@ if __name__ == '__main__':
         'load_parameter': {
             'a':1e-3,
             'b':5e-4,
-            'c':9e-4,
+   #         'c':5.7e-4,
+            'c':7e-4,
             'j_load':100e-3
         },
         'limits': {
@@ -283,7 +307,7 @@ if __name__ == '__main__':
 
     supply = RCVoltageSupply(battery_parameters['voltage'], battery_parameters['parameters'])
     supply_HV = RCVoltageSupply(battery_parameters_HV['voltage'], battery_parameters_HV['parameters'])
-    reference_generator = ConstReferenceGenerator(reference_value=.65)
+    reference_generator = ConstReferenceGenerator(reference_value=.7)
 
     wrapper = CurrentVectorProcessor()
     physical_system_wrappers = []
@@ -356,7 +380,7 @@ if __name__ == '__main__':
     motor_dict = {'id': id, 'iq': iq, 'ud': ud, 'uq': uq, 'ia': ia, 'ib': ib, 'ic': ic, 'isup': isup, 'ua': ua, 'ub': ub, 'uc': uc, 'omega': omega, 'torque': torque}
     motor = pd.DataFrame(data=motor_dict)
     motor['mech_pwr'] = motor['omega'] * motor['torque']
-    motor['elec_pwr_dc'] = motor['isup'] * 600
+    motor['elec_pwr_dc'] = motor['isup'] * battery_parameters['voltage']
     motor['elec_pwr_ac'] = motor.ia * motor.ua + motor.ib * motor.ub + motor.ic * motor.uc
     motor['eff'] = motor.mech_pwr/motor.elec_pwr_ac
     motor['rpm'] = motor.omega * 30 / np.pi
